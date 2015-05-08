@@ -360,7 +360,7 @@ class WRFHydroHRRRDatasetManager(CKANDatasetManager):
 
     def download_recent_resource(self, watershed, subbasin, main_extract_directory):
         """
-        This function downloads the most recent resource within 3 days
+        This function downloads the most recent resource within 1 day
         """
         iteration = 0
         download_file = False
