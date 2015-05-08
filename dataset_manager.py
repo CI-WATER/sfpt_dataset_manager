@@ -153,7 +153,7 @@ class CKANDatasetManager(object):
                                                     forecast_date=self.date_string,
                                                     description=self.resource_description)
                 else:
-                    print "Resource exists. Skipping."
+                    print "Resource exists. Skipping ..."
             except Exception,e:
                 print e
                 pass
@@ -233,10 +233,13 @@ class CKANDatasetManager(object):
                 tar.close()
                 os.remove(local_tar_file_path)
                 print "Finished downloading and extracting file(s)"
+                return True
             else:
-                print "Resource exists locally. Skipping"
+                print "Resource exists locally. Skipping ..."
+                return True
         else:
-            print "Resource not found in CKAN. Skipping"
+            print "Resource not found in CKAN. Skipping ..."
+            return False
 
     def download_prediction_resource(self, watershed, subbasin, date_string, extract_directory):
         """
@@ -262,7 +265,13 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                                                         'downscalsing ECMWF forecasts and routing them with RAPID',
                                                         "%Y%m%d.%H"
                                                         )
-  
+    def initialize_run_ecmwf(self, watershed, subbasin, date_string):
+        """
+        Initialize run for watershed upload/download custom for ecmwf
+        """
+        self.initialize_run(watershed, subbasin, date_string[:11])
+        self.date_string = date_string
+    
     def get_subbasin_name_list(self, source_directory, subbasin_name_search):
         """
         Get a list of subbasins in directory
@@ -292,11 +301,34 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 subbasin_list = self.get_subbasin_name_list(os.path.join(watershed_dir, date_string), 
                                                        subbasin_name_search)
                 for subbasin in subbasin_list:
-                    self.initialize_run(watershed, subbasin, date_string[:11])
+                    self.initialize_run_ecmwf(watershed, subbasin, date_string)
                     self.zip_upload_directory(os.path.join(watershed_dir, date_string), 
                                               'Qout_%s*.nc' % subbasin)
 
-                                              
+    def download_recent_resource(self, watershed, subbasin, main_extract_directory):
+        """
+        This function downloads the most recent resource within 3 days
+        """
+        iteration = 0
+        download_file = False
+        today_datetime = datetime.datetime.utcnow()
+        #search for datasets within the last 3 days
+        while not download_file and iteration < 6:
+            days, hours = divmod(iteration*12,24)
+            today =  today_datetime - datetime.timedelta(days, hours)
+            hour = '1200' if today.hour > 11 else '0'
+            date_string = '%s.%s' % (today.strftime("%Y%m%d"), hour)
+            
+            self.initialize_run_ecmwf(watershed, subbasin, date_string)
+            resource_info = self.get_resource_info()
+            if resource_info and main_extract_directory and os.path.exists(main_extract_directory):
+                extract_directory = os.path.join(main_extract_directory, self.watershed, date_string)
+                download_file = self.download_resource(extract_directory)
+            iteration += 1
+                    
+        if not download_file:
+            print "Recent resources not found. Skipping ..."
+                                      
 #------------------------------------------------------------------------------
 #WRF-Hydro RAPID Dataset Manager Class
 #------------------------------------------------------------------------------
