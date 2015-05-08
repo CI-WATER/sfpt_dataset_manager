@@ -3,6 +3,7 @@ import datetime
 from glob import glob
 import os
 import re
+from requests import get
 import tarfile
 
 from tethys_dataset_services.engines import CkanDatasetEngine
@@ -10,7 +11,7 @@ from tethys_dataset_services.engines import CkanDatasetEngine
 #------------------------------------------------------------------------------
 #Main Dataset Manager Class
 #------------------------------------------------------------------------------
-class CKANDatasetManager():
+class CKANDatasetManager(object):
     """
     This class is used to find, zip and upload files to a CKAN data server
     #note: this does not delete the original files
@@ -112,7 +113,7 @@ class CKANDatasetManager():
             dataset_id = result['result']['id']
         return dataset_id
        
-    def upload_resource(self, tar_file_path):
+    def upload_resource(self, tar_file_path, overwrite=False):
         """
         This function uploads a resource to a dataset if it does not exist
         """
@@ -124,7 +125,23 @@ class CKANDatasetManager():
             resource_results = self.dataset_engine.search_resources({'name':self.resource_name},
                                                                     datset_id=dataset_id)
             try:
-                if resource_results['result']['count'] <=0:
+                if overwrite and resource_results['result']['count'] > 0:
+                    #delete resource
+                    """
+                    CKAN API CURRENTLY DOES NOT WORK FOR UPDATE - bug = needs file or url, 
+                    but requres both and to have only one ...
+
+                    #update existing resource
+                    print resource_results['result']['results'][0]
+                    update_results = self.dataset_engine.update_resource(resource_results['result']['results'][0]['id'], 
+                                                        file=file_to_upload,
+                                                        url="",
+                                                        date_uploaded=datetime.datetime.utcnow().strftime("%Y%m%d%H%M"))
+                    """
+                    self.dataset_engine.delete_resource(resource_results['result']['results'][0]['id'])
+
+                if resource_results['result']['count'] <=0 or overwrite:
+                    
                     #upload resources to the dataset
                     self.dataset_engine.create_resource(dataset_id, 
                                                     name=self.resource_name, 
@@ -135,6 +152,8 @@ class CKANDatasetManager():
                                                     subbasin=self.subbasin,
                                                     forecast_date=self.date_string,
                                                     description=self.resource_description)
+                else:
+                    print "Resource exists. Skipping."
             except Exception,e:
                 print e
                 pass
@@ -152,7 +171,7 @@ class CKANDatasetManager():
         os.remove(tar_file_path)
         print "Finished uploading datasets"
 
-    def zip_upload_directory(self, directory_path, search_string="*"):
+    def zip_upload_directory(self, directory_path, search_string="*", overwrite=False):
         """
         This function uploads a resource to a dataset if it does not exist
         """
@@ -161,7 +180,7 @@ class CKANDatasetManager():
         tar_file_path = self.make_directory_tarfile(directory_path, search_string)    
         print "Finished zipping files"
         print "Uploading datasets"
-        self.upload_resource(tar_file_path)
+        self.upload_resource(tar_file_path, overwrite)
         os.remove(tar_file_path)
         print "Finished uploading datasets"
            
@@ -189,25 +208,34 @@ class CKANDatasetManager():
         """
         resource_info = self.get_resource_info()
         if resource_info:
+           
             #only download if file does not exist already
             if not os.path.exists(extract_directory):
+                resource_url = resource_info['url']
+                print "Downloading files for watershed:", self.watershed, self.subbasin
                 try:
                     os.makedirs(extract_directory)
                 except OSError:
                     pass
+
                 local_tar_file = "%s.tar.gz" % self.resource_name
                 local_tar_file_path = os.path.join(extract_directory,
                                                    local_tar_file)
-                r = requests.get(resource_info['url'], stream=True)
+                r = get(resource_url, stream=True)
                 with open(local_tar_file_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=1024): 
                         if chunk: # filter out keep-alive new chunks
                             f.write(chunk)
                             f.flush()
+
+                print "Extracting file(s)"
                 tar = tarfile.open(local_tar_file_path)
-                tar.extractall(extract_dir)
+                tar.extractall(extract_directory)
                 tar.close()
                 os.remove(local_tar_file_path)
+                print "Finished downloading and extracting file(s)"
+            else:
+                print "Resource exists. Skipping"
 
     def download_prediction_resource(self, watershed, subbasin, date_string, extract_directory):
         """
@@ -231,7 +259,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                                                         "ECMWF-RAPID Flood Predicition Dataset",
                                                         'This dataset contians NetCDF3 files produced by '
                                                         'downscalsing ECMWF forecasts and routing them with RAPID',
-                                                        "%Y%m%d"
+                                                        "%Y%m%d.%H"
                                                         )
   
     def get_subbasin_name_list(self, source_directory, subbasin_name_search):
@@ -239,7 +267,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         Get a list of subbasins in directory
         """
         subbasin_list = []
-        outflow_files = glob(os.path.join(source_directory,'Qout_*.nc')).sort()
+        outflow_files = sorted(glob(os.path.join(source_directory,'Qout_*.nc')))
         for outflow_file in outflow_files:
             subbasin_name = subbasin_name_search.search(os.path.basename(outflow_file)).group(1)
             if subbasin_name not in subbasin_list:
@@ -263,7 +291,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 subbasin_list = self.get_subbasin_name_list(os.path.join(watershed_dir, date_string), 
                                                        subbasin_name_search)
                 for subbasin in subbasin_list:
-                    self.initialize_run(watershed, subbasin, date_string)
+                    self.initialize_run(watershed, subbasin, date_string[:11])
                     self.zip_upload_directory(os.path.join(watershed_dir, date_string), 
                                               'Qout_%s*.nc' % subbasin)
 
@@ -334,11 +362,11 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         #get info for waterhseds
         basin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
         namelist_file = glob(os.path.join(source_directory,'rapid_namelist_*.dat'))[0]
-        subbasin = basin_name_search.search(basin_file).group(1)
+        subbasin = basin_name_search.search(namelist_file).group(1)
         watershed = os.path.basename(source_directory)
      
         self.initialize_run(watershed, subbasin)
-        self.zip_upload_directory(source_directory)                                                           )
+        self.zip_upload_directory(source_directory)
 
     def download_prediction_resource(self, watershed, subbasin, extract_directory):
         """
@@ -361,18 +389,16 @@ if __name__ == "__main__":
     er_manager.download_prediction_resource(watershed='magdalena', 
                                             subbasin='el_banco', 
                                             date_string='20150505.0', 
-                                            extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions')
+                                            extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
     """
     #WRF-Hydro
-    """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
-    er_manager.zip_upload_resources(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
+    wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
-    er_manager.download_prediction_resource(watershed='usa', 
+    wr_manager.download_prediction_resource(watershed='usa', 
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
-                                            extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions')
-    """
+                                            extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
     #RAPID Input
     #ri_manager = RAPIDInputDatasetManager(engine_url, api_key, 'erfp', app_instance_id)
