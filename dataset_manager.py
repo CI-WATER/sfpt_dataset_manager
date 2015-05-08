@@ -208,7 +208,6 @@ class CKANDatasetManager(object):
         """
         resource_info = self.get_resource_info()
         if resource_info:
-           
             #only download if file does not exist already
             if not os.path.exists(extract_directory):
                 resource_url = resource_info['url']
@@ -235,7 +234,9 @@ class CKANDatasetManager(object):
                 os.remove(local_tar_file_path)
                 print "Finished downloading and extracting file(s)"
             else:
-                print "Resource exists. Skipping"
+                print "Resource exists locally. Skipping"
+        else:
+            print "Resource not found in CKAN. Skipping"
 
     def download_prediction_resource(self, watershed, subbasin, date_string, extract_directory):
         """
@@ -368,7 +369,7 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         self.initialize_run(watershed, subbasin)
         self.zip_upload_directory(source_directory)
 
-    def download_prediction_resource(self, watershed, subbasin, extract_directory):
+    def download_model_resource(self, watershed, subbasin, extract_directory):
         """
         This function downloads a prediction resource
         """
@@ -392,6 +393,7 @@ if __name__ == "__main__":
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
     """
     #WRF-Hydro
+    """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
@@ -400,5 +402,13 @@ if __name__ == "__main__":
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
+    """
     #RAPID Input
-    #ri_manager = RAPIDInputDatasetManager(engine_url, api_key, 'erfp', app_instance_id)
+    """
+    app_instance_id = '53ab91374b7155b0a64f0efcd706854e'
+    ri_manager = RAPIDInputDatasetManager(engine_url, api_key, 'ecmwf', app_instance_id)
+    ri_manager.zip_upload_resource(source_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
+    ri_manager.download_model_resource(watershed='nfie_texas_gulf_region', 
+                                       subbasin='huc_2_12', 
+                                       extract_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
+    """
