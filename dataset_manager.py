@@ -314,8 +314,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         today_datetime = datetime.datetime.utcnow()
         #search for datasets within the last 3 days
         while not download_file and iteration < 6:
-            days, hours = divmod(iteration*12,24)
-            today =  today_datetime - datetime.timedelta(days, hours)
+            today =  today_datetime - datetime.timedelta(seconds=iteration*12*60*60)
             hour = '1200' if today.hour > 11 else '0'
             date_string = '%s.%s' % (today.strftime("%Y%m%d"), hour)
             
@@ -358,6 +357,29 @@ class WRFHydroHRRRDatasetManager(CKANDatasetManager):
         self.initialize_run(watershed, subbasin, date_string)
         self.zip_upload_file(source_file)
 
+
+    def download_recent_resource(self, watershed, subbasin, main_extract_directory):
+        """
+        This function downloads the most recent resource within 3 days
+        """
+        iteration = 0
+        download_file = False
+        today_datetime = datetime.datetime.utcnow()
+        #search for datasets within the last day
+        while not download_file and iteration < 24:
+            today =  today_datetime - datetime.timedelta(seconds=iteration*60*60)
+            
+            date_string = today.strftime(self.date_format_string)
+            self.initialize_run(watershed, subbasin, date_string)
+            resource_info = self.get_resource_info()
+            print resource_info, date_string
+            if resource_info and main_extract_directory and os.path.exists(main_extract_directory):
+                extract_directory = os.path.join(main_extract_directory, self.watershed)
+                download_file = self.download_resource(extract_directory)
+            iteration += 1
+                    
+        if not download_file:
+            print "Recent resources not found. Skipping ..."
 
 #------------------------------------------------------------------------------
 #RAPID Input Dataset Manager Class
@@ -425,8 +447,8 @@ if __name__ == "__main__":
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
     """
     #WRF-Hydro
-    """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
+    """
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
@@ -435,6 +457,9 @@ if __name__ == "__main__":
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
     """
+    wr_manager.download_recent_resource(watershed='usa', 
+                                        subbasin='usa', 
+                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
     #RAPID Input
     """
     app_instance_id = '53ab91374b7155b0a64f0efcd706854e'
