@@ -236,7 +236,7 @@ class CKANDatasetManager(object):
                 return True
             else:
                 print "Resource exists locally. Skipping ..."
-                return True
+                return False
         else:
             print "Resource not found in CKAN. Skipping ..."
             return False
