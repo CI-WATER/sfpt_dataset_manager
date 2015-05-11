@@ -113,7 +113,7 @@ class CKANDatasetManager(object):
             dataset_id = result['result']['id']
         return dataset_id
        
-    def upload_resource(self, tar_file_path, overwrite=False):
+    def upload_resource(self, file_path, overwrite=False, file_format='tar.gz'):
         """
         This function uploads a resource to a dataset if it does not exist
         """
@@ -145,8 +145,8 @@ class CKANDatasetManager(object):
                     #upload resources to the dataset
                     self.dataset_engine.create_resource(dataset_id, 
                                                     name=self.resource_name, 
-                                                    file=tar_file_path,
-                                                    format='tar.gz', 
+                                                    file=file_path,
+                                                    format=file_format, 
                                                     tethys_app="erfp_tool",
                                                     watershed=self.watershed,
                                                     subbasin=self.subbasin,
@@ -435,8 +435,8 @@ if __name__ == "__main__":
     """    
     Tests for the datasets
     """
-    engine_url = 'http://ciwckan.chpc.utah.edu'
-    api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
+    #engine_url = 'http://ciwckan.chpc.utah.edu'
+    #api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
     #ECMWF
     """
     er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
@@ -447,8 +447,8 @@ if __name__ == "__main__":
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
     """
     #WRF-Hydro
-    wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
     """
+    wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
@@ -456,10 +456,10 @@ if __name__ == "__main__":
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
-    """
     wr_manager.download_recent_resource(watershed='usa', 
                                         subbasin='usa', 
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
+    """
     #RAPID Input
     """
     app_instance_id = '53ab91374b7155b0a64f0efcd706854e'
