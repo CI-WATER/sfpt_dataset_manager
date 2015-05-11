@@ -143,7 +143,7 @@ class CKANDatasetManager(object):
                 if resource_results['result']['count'] <=0 or overwrite:
                     
                     #upload resources to the dataset
-                    self.dataset_engine.create_resource(dataset_id, 
+                    return self.dataset_engine.create_resource(dataset_id, 
                                                     name=self.resource_name, 
                                                     file=file_path,
                                                     format=file_format, 
@@ -152,6 +152,7 @@ class CKANDatasetManager(object):
                                                     subbasin=self.subbasin,
                                                     forecast_date=self.date_string,
                                                     description=self.resource_description)
+                                                    
                 else:
                     print "Resource exists. Skipping ..."
             except Exception,e:
@@ -167,9 +168,10 @@ class CKANDatasetManager(object):
         tar_file_path = self.make_tarfile(file_path)    
         print "Finished zipping files"
         print "Uploading datasets"
-        self.upload_resource(tar_file_path)
+        resource_info = self.upload_resource(tar_file_path)
         os.remove(tar_file_path)
         print "Finished uploading datasets"
+        return resource_info
 
     def zip_upload_directory(self, directory_path, search_string="*", overwrite=False):
         """
@@ -180,9 +182,10 @@ class CKANDatasetManager(object):
         tar_file_path = self.make_directory_tarfile(directory_path, search_string)    
         print "Finished zipping files"
         print "Uploading datasets"
-        self.upload_resource(tar_file_path, overwrite)
+        resource_info = self.upload_resource(tar_file_path, overwrite)
         os.remove(tar_file_path)
         print "Finished uploading datasets"
+        return resource_info
            
     def get_resource_info(self):
         """
@@ -429,6 +432,17 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         """
         self.initialize_run(watershed, subbasin)
         self.download_resource(extract_directory)
+    
+    def upload_model_resource(self, upload_file, watershed, subbasin):
+        """
+        This function uploads file to CKAN
+        """
+        self.initialize_run(watershed, subbasin)
+        resource_info = self.dataset_engine.upload_resource(upload_file, 
+                                                            True,
+                                                            '.zip')
+        os.remove(upload_file)
+        return resource_info
 
 
 if __name__ == "__main__":
