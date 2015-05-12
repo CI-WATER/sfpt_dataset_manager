@@ -375,7 +375,6 @@ class WRFHydroHRRRDatasetManager(CKANDatasetManager):
             date_string = today.strftime(self.date_format_string)
             self.initialize_run(watershed, subbasin, date_string)
             resource_info = self.get_resource_info()
-            print resource_info, date_string
             if resource_info and main_extract_directory and os.path.exists(main_extract_directory):
                 extract_directory = os.path.join(main_extract_directory, self.watershed)
                 download_file = self.download_resource(extract_directory)
