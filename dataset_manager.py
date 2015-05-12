@@ -538,7 +538,6 @@ if __name__ == "__main__":
     app_instance_id = 'eb76561dc4ba513c994a00f7721becf1'
     ri_manager = RAPIDInputDatasetManager(engine_url, api_key, 'ecmwf', app_instance_id)
     ri_manager.zip_upload_resource(source_directory='/home/alan/work/tmp_input/rio_yds')
-    ri_manager.zip_upload_resource(source_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
     ri_manager.download_model_resource(watershed='nfie_texas_gulf_region', 
                                        subbasin='huc_2_12', 
                                        extract_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
