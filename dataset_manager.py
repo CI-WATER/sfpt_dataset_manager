@@ -438,9 +438,9 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         This function uploads file to CKAN
         """
         self.initialize_run(watershed, subbasin)
-        resource_info = self.dataset_engine.upload_resource(upload_file, 
-                                                            True,
-                                                            '.zip')
+        resource_info = self.upload_resource(upload_file, 
+                                             True,
+                                             '.zip')
         os.remove(upload_file)
         return resource_info
 
