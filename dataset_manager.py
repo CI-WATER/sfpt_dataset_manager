@@ -4,7 +4,9 @@ from glob import glob
 import os
 import re
 from requests import get
+from shutil import rmtree
 import tarfile
+import zipfile
 
 from tethys_dataset_services.engines import CkanDatasetEngine
 
@@ -214,13 +216,14 @@ class CKANDatasetManager(object):
             #only download if file does not exist already
             if not os.path.exists(extract_directory):
                 resource_url = resource_info['url']
+                file_format = resource_info['format']
                 print "Downloading files for watershed:", self.watershed, self.subbasin
                 try:
                     os.makedirs(extract_directory)
                 except OSError:
                     pass
 
-                local_tar_file = "%s.tar.gz" % self.resource_name
+                local_tar_file = "%s.%s" % (self.resource_name, file_format)
                 local_tar_file_path = os.path.join(extract_directory,
                                                    local_tar_file)
                 r = get(resource_url, stream=True)
@@ -231,9 +234,14 @@ class CKANDatasetManager(object):
                             f.flush()
 
                 print "Extracting file(s)"
-                tar = tarfile.open(local_tar_file_path)
-                tar.extractall(extract_directory)
-                tar.close()
+                if file_format.lower() == "tar.gz":
+                    with tarfile.open(local_tar_file_path) as tar:
+                        tar.extractall(extract_directory)
+                elif file_format.lower() == "zip":
+                    with zipfile.ZipFile(local_tar_file_path) as zip_file:
+                        zip_file.extractall(extract_directory)
+                else:
+                    print "Unsupported file format. Skipping."
                 os.remove(local_tar_file_path)
                 print "Finished downloading and extracting file(s)"
                 return True
@@ -392,12 +400,13 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
     prediction files from/to a data server
     """
     def __init__(self, engine_url, api_key, model_name, app_instance_id):
-        self.app_instance_id = app_instance_id
         super(RAPIDInputDatasetManager, self).__init__(engine_url, 
                                                         api_key,
                                                         model_name,
                                                         "RAPID Input Dataset for %s" % model_name,
                                                         'This dataset contians RAPID files for %s' % model_name)
+        self.app_instance_id = app_instance_id
+        self.dataset_name = '%s-rapid-input-%s' % (self.model_name, self.app_instance_id)
 
     def initialize_run(self, watershed, subbasin):
         """
@@ -407,7 +416,6 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         self.subbasin = subbasin
         self.date = datetime.datetime.utcnow()
         self.date_string = self.date.strftime(self.date_format_string)
-        self.dataset_name = '%s-rapid-input-%s' % (self.model_name, self.app_instance_id)
         self.resource_name = '%s-%s-%s-rapid-input' % (self.model_name,
                                                        self.watershed, 
                                                        self.subbasin)
@@ -418,12 +426,13 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         """
         #get info for waterhseds
         basin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
-        namelist_file = glob(os.path.join(source_directory,'rapid_namelist_*.dat'))[0]
-        subbasin = basin_name_search.search(namelist_file).group(1)
-        watershed = os.path.basename(source_directory)
-     
-        self.initialize_run(watershed, subbasin)
-        self.zip_upload_directory(source_directory)
+        namelist_files = glob(os.path.join(source_directory,'rapid_namelist_*.dat'))
+        if namelist_files:
+            subbasin = basin_name_search.search(namelist_files[0]).group(1)
+            watershed = os.path.basename(source_directory)
+         
+            self.initialize_run(watershed, subbasin)
+            self.zip_upload_directory(source_directory)
 
     def download_model_resource(self, watershed, subbasin, extract_directory):
         """
@@ -442,6 +451,57 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
                                              '.zip')
         os.remove(upload_file)
         return resource_info
+        
+    def sync_dataset(self, extract_directory):
+        """
+        This function syncs the dataset with the directory
+        """
+        # Use the json module to load CKAN's response into a dictionary.
+        response_dict = self.dataset_engine.search_datasets({ 'name': self.dataset_name })
+        if response_dict['success']:
+            #get list of resources on CKAN
+            current_ckan_resources = response_dict['result']['results'][0]['resources']
+            #get list of watersheds and subbasins on local instance
+            current_local_resources = []
+            subbasin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
+            watersheds = [d for d in os.listdir(extract_directory) \
+                if os.path.isdir(os.path.join(extract_directory, d))]
+    
+            for watershed in watersheds:
+                namelist_files = glob(os.path.join(extract_directory, watershed, 'rapid_namelist_*.dat'))
+                if namelist_files:
+                    subbasin = subbasin_name_search.search(namelist_files[0]).group(1)
+                    current_local_resources.append({'watershed': watershed, 'subbasin': subbasin})
+
+            date_compare = datetime.datetime.utcnow()-datetime.timedelta(seconds=12*60*60)
+            #STEP 1: Remove resources no longer on CKAN or update local resource
+            for local_resource in current_local_resources:
+                ckan_resource = [d for d in current_ckan_resources if \
+                                    (d['watershed'] == local_resource['watershed']) and \
+                                    d['subbasin'] == local_resource['subbasin']]
+                if not ckan_resource:
+                    #Remove resources no longer on CKAN
+                    print "LOCAL DELETE"
+                    #remove local resource from list
+                    current_local_resources[:] = [d for d in current_local_resources if d != local_resource]
+                    rmtree(os.path.join(extract_directory, local_resource['watershed']))
+                elif datetime.datetime.strptime(ckan_resource[0]['created'].split(".")[0], "%Y-%m-%dT%H:%M:%S") > date_compare:
+                    #2015-05-12T14:01:08.572338
+                    print "LOCAL PAST DELETE"
+                    #remove local resource from list
+                    current_local_resources[:] = [d for d in current_local_resources if d != local_resource]
+                    rmtree(os.path.join(extract_directory, local_resource['watershed']))
+            
+            #STEP 2: Add new resources to local instance
+            for ckan_resource in current_ckan_resources:         
+                local_resource = [d for d in current_local_resources if \
+                                    (d['watershed'] == ckan_resource['watershed']) and \
+                                    d['subbasin'] == ckan_resource['subbasin']]
+
+                if not local_resource:
+                    self.download_model_resource(ckan_resource['watershed'],
+                                                 ckan_resource['subbasin'],
+                                                 os.path.join(extract_directory, ckan_resource['watershed']))                
 
 
 if __name__ == "__main__":
@@ -475,10 +535,12 @@ if __name__ == "__main__":
     """
     #RAPID Input
     """
-    app_instance_id = '53ab91374b7155b0a64f0efcd706854e'
+    app_instance_id = 'eb76561dc4ba513c994a00f7721becf1'
     ri_manager = RAPIDInputDatasetManager(engine_url, api_key, 'ecmwf', app_instance_id)
+    ri_manager.zip_upload_resource(source_directory='/home/alan/work/tmp_input/rio_yds')
     ri_manager.zip_upload_resource(source_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
     ri_manager.download_model_resource(watershed='nfie_texas_gulf_region', 
                                        subbasin='huc_2_12', 
                                        extract_directory='/home/alan/work/tmp_input/nfie_texas_gulf_region')
+    ri_manager.sync_dataset('/home/alan/work/tmp_input/')
     """
