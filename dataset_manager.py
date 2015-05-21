@@ -460,7 +460,9 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         response_dict = self.dataset_engine.search_datasets({ 'name': self.dataset_name })
         if response_dict['success']:
             #get list of resources on CKAN
-            current_ckan_resources = response_dict['result']['results'][0]['resources']
+            current_ckan_resources = [d for d in response_dict['result']['results'][0]['resources'] \
+                          if 'watershed' in d \
+                          and 'subbasin' in d]
             #get list of watersheds and subbasins on local instance
             current_local_resources = []
             subbasin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
