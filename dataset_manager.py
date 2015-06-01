@@ -389,7 +389,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         """
         iteration = 0
         download_file = False
-        today_datetime = datetime.datetime.utcnow()-datetime.timedelta(2)
+        today_datetime = datetime.datetime.utcnow()
         #search for datasets within the last 3 days
         while not download_file and iteration < 6:
             today =  today_datetime - datetime.timedelta(seconds=iteration*12*60*60)
