@@ -206,34 +206,47 @@ class CKANDatasetManager(object):
                 print e
                 pass
         return None
-    
-    def download_resource(self, extract_directory):
-        """
-        This function downloads a resource
-        """
-        resource_info = self.get_resource_info()
-        if resource_info:
-            #only download if file does not exist already
-            if not os.path.exists(extract_directory):
-                resource_url = resource_info['url']
-                file_format = resource_info['format']
-                print "Downloading files for watershed:", self.watershed, self.subbasin
-                try:
-                    os.makedirs(extract_directory)
-                except OSError:
-                    pass
 
-                local_tar_file = "%s.%s" % (self.resource_name, file_format)
+    def get_dataset_info(self):
+        """
+        This function gets the info of a resource
+        """
+        # Use the json module to load CKAN's response into a dictionary.
+        response_dict = self.dataset_engine.search_datasets({ 'name': self.dataset_name })
+        
+        if response_dict['success']:
+            if int(response_dict['result']['count']) > 0:
+                return response_dict['result']['results'][0]
+            return None
+        else:
+            return None
+
+    
+    def download_resource_from_info(self, extract_directory, resource_info_array):
+        """
+        Downloads a resource from url
+        """
+        #only download if file does not exist already
+        if not os.path.exists(extract_directory):
+            print "Downloading and extracting files for watershed:", self.watershed, self.subbasin
+            try:
+                os.makedirs(extract_directory)
+            except OSError:
+                pass
+            for resource_info in resource_info_array:
+                #for resource
+                file_format = resource_info['format']
+                
+                local_tar_file = "%s.%s" % (resource_info['name'], file_format)
                 local_tar_file_path = os.path.join(extract_directory,
                                                    local_tar_file)
-                r = get(resource_url, stream=True)
+                r = get(resource_info['url'], stream=True)
                 with open(local_tar_file_path, 'wb') as f:
                     for chunk in r.iter_content(chunk_size=1024): 
                         if chunk: # filter out keep-alive new chunks
                             f.write(chunk)
                             f.flush()
-
-                print "Extracting file(s)"
+    
                 if file_format.lower() == "tar.gz":
                     with tarfile.open(local_tar_file_path) as tar:
                         tar.extractall(extract_directory)
@@ -242,12 +255,23 @@ class CKANDatasetManager(object):
                         zip_file.extractall(extract_directory)
                 else:
                     print "Unsupported file format. Skipping."
+
                 os.remove(local_tar_file_path)
-                print "Finished downloading and extracting file(s)"
-                return True
-            else:
-                print "Resource exists locally. Skipping ..."
-                return False
+                
+            print "Finished downloading and extracting file(s)"
+            return True
+        else:
+            print "Resource exists locally. Skipping ..."
+            return False
+
+    def download_resource(self, extract_directory):
+        """
+        This function downloads a resource
+        """
+        resource_info = self.get_resource_info()
+        if resource_info:
+            self.download_resource_from_info(extract_directory, 
+                                             [resource_info])
         else:
             print "Resource not found in CKAN. Skipping ..."
             return False
@@ -276,12 +300,29 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                                                         'downscalsing ECMWF forecasts and routing them with RAPID',
                                                         "%Y%m%d.%H"
                                                         )
+                                                        
     def initialize_run_ecmwf(self, watershed, subbasin, date_string):
         """
         Initialize run for watershed upload/download custom for ecmwf
         """
-        self.initialize_run(watershed, subbasin, date_string[:11])
-        self.date_string = date_string
+        self.watershed = watershed
+        self.subbasin = subbasin
+        self.date_string = date_string[:11]
+        self.date = datetime.datetime.strptime(self.date_string, self.date_format_string)
+        self.dataset_name = '%s-%s-%s-%s' % (self.model_name, 
+                                             self.watershed, 
+                                             self.subbasin, 
+                                             self.date.strftime("%Y%m%dt%H"))
+                                                
+    def update_resource_ensemble_number(self, ensemble_number):
+        """
+        Set ensemble number in resource name for ecmwf resource
+        """
+        self.resource_name = '%s-%s-%s-%s-%s' % (self.model_name,
+                                                 self.watershed, 
+                                                 self.subbasin,
+                                                 self.date_string,
+                                                 ensemble_number)
     
     def get_subbasin_name_list(self, source_directory, subbasin_name_search):
         """
@@ -294,6 +335,32 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
             if subbasin_name not in subbasin_list:
                 subbasin_list.append(subbasin_name)
         return subbasin_list
+
+    def zip_upload_directory(self, directory_path, search_string="*"):
+        """
+        This function packages all of the datasets into individual tar.gz files and
+        uploads them to the dataset
+        """
+        base_path = os.path.dirname(directory_path)
+        ensemble_number_search = re.compile(r'Qout_\w+_(\d+).nc')
+
+        #zip file and get dataset information
+        print "Zipping and uploading files for watershed: %s %s" % (self.watershed, self.subbasin)
+        directory_files = glob(os.path.join(directory_path,search_string))
+        for directory_file in directory_files:
+            ensemble_number = ensemble_number_search.search(os.path.basename(directory_file)).group(1)
+            self.update_resource_ensemble_number(ensemble_number)
+            #tar.gz file
+            output_tar_file =  os.path.join(base_path, "%s.tar.gz" % self.resource_name)
+            if not os.path.exists(output_tar_file):
+                with tarfile.open(output_tar_file, "w:gz") as tar:
+                    tar.add(directory_file, arcname=os.path.basename(directory_file))
+            #upload file
+            resource_info = self.upload_resource(output_tar_file, overwrite=True)
+            os.remove(output_tar_file)
+        print "%s datasets uploaded" % len(directory_files)
+        return resource_info
+
         
     def zip_upload_resources(self, source_directory):
         """
@@ -302,7 +369,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         """
         watersheds = [d for d in os.listdir(source_directory) \
                         if os.path.isdir(os.path.join(source_directory, d))]
-        subbasin_name_search = re.compile(r'Qout_(\w+)_[a-zA-Z\d]+.nc')
+        subbasin_name_search = re.compile(r'Qout_(\w+)_\d+.nc')
 
         for watershed in watersheds:
             watershed_dir = os.path.join(source_directory, watershed)
@@ -315,14 +382,14 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                     self.initialize_run_ecmwf(watershed, subbasin, date_string)
                     self.zip_upload_directory(os.path.join(watershed_dir, date_string), 
                                               'Qout_%s*.nc' % subbasin)
-
+    
     def download_recent_resource(self, watershed, subbasin, main_extract_directory):
         """
         This function downloads the most recent resource within 3 days
         """
         iteration = 0
         download_file = False
-        today_datetime = datetime.datetime.utcnow()
+        today_datetime = datetime.datetime.utcnow()-datetime.timedelta(2)
         #search for datasets within the last 3 days
         while not download_file and iteration < 6:
             today =  today_datetime - datetime.timedelta(seconds=iteration*12*60*60)
@@ -330,10 +397,15 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
             date_string = '%s.%s' % (today.strftime("%Y%m%d"), hour)
             
             self.initialize_run_ecmwf(watershed, subbasin, date_string)
-            resource_info = self.get_resource_info()
-            if resource_info and main_extract_directory and os.path.exists(main_extract_directory):
+            #get list of all resources
+            dataset_info = self.get_dataset_info()
+            if dataset_info and main_extract_directory and os.path.exists(main_extract_directory):
                 extract_directory = os.path.join(main_extract_directory, self.watershed, date_string)
-                download_file = self.download_resource(extract_directory)
+                self.download_resource_from_info(extract_directory,
+                                                 dataset_info['resources'])
+
+                download_file = True
+                        
             iteration += 1
                     
         if not download_file:
@@ -457,12 +529,11 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         This function syncs the dataset with the directory
         """
         # Use the json module to load CKAN's response into a dictionary.
-        response_dict = self.dataset_engine.search_datasets({ 'name': self.dataset_name })
-        if response_dict['success']:
+        dataset_info = self.get_dataset_info()
+        if dataset_info:
             #get list of resources on CKAN
-            current_ckan_resources = [d for d in response_dict['result']['results'][0]['resources'] \
-                          if 'watershed' in d \
-                          and 'subbasin' in d]
+            current_ckan_resources = [d for d in dataset_info['resources'] \
+                                      if 'watershed' in d and 'subbasin' in d]
             #get list of watersheds and subbasins on local instance
             current_local_resources = []
             subbasin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
@@ -520,6 +591,9 @@ if __name__ == "__main__":
                                             subbasin='el_banco', 
                                             date_string='20150505.0', 
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
+    er_manager.download_recent_resource(watershed="rio_yds", 
+                                        subbasin="palo_alto", 
+                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions' )
     """
     #WRF-Hydro
     """
@@ -530,10 +604,10 @@ if __name__ == "__main__":
     wr_manager.download_prediction_resource(watershed='usa', 
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
-                                            extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
+                                            extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
     wr_manager.download_recent_resource(watershed='usa', 
                                         subbasin='usa', 
-                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa')
+                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
     """
     #RAPID Input
     """
