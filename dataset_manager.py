@@ -385,13 +385,13 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
     
     def download_recent_resource(self, watershed, subbasin, main_extract_directory):
         """
-        This function downloads the most recent resource within 3 days
+        This function downloads the most recent resource within 6 days
         """
         iteration = 0
         download_file = False
         today_datetime = datetime.datetime.utcnow()
-        #search for datasets within the last 3 days
-        while not download_file and iteration < 6:
+        #search for datasets within the last 6 days
+        while not download_file and iteration < 12:
             today =  today_datetime - datetime.timedelta(seconds=iteration*12*60*60)
             hour = '1200' if today.hour > 11 else '0'
             date_string = '%s.%s' % (today.strftime("%Y%m%d"), hour)
@@ -400,11 +400,13 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
             #get list of all resources
             dataset_info = self.get_dataset_info()
             if dataset_info and main_extract_directory and os.path.exists(main_extract_directory):
-                extract_directory = os.path.join(main_extract_directory, self.watershed, date_string)
-                self.download_resource_from_info(extract_directory,
-                                                 dataset_info['resources'])
+                #make sure there are at least 52 before downloading
+                if dataset_info['num_resources'] >= 52:
+                    extract_directory = os.path.join(main_extract_directory, self.watershed, date_string)
+                    self.download_resource_from_info(extract_directory,
+                                                     dataset_info['resources'])
 
-                download_file = True
+                    download_file = True
                         
             iteration += 1
                     
@@ -581,20 +583,20 @@ if __name__ == "__main__":
     """    
     Tests for the datasets
     """
-    #engine_url = 'http://ciwckan.chpc.utah.edu'
-    #api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
+    engine_url = 'http://ciwckan.chpc.utah.edu'
+    api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
     #ECMWF
-    """
     er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
+    """
     er_manager.zip_upload_resources(source_directory='/home/alan/work/rapid/output/')
     er_manager.download_prediction_resource(watershed='magdalena', 
                                             subbasin='el_banco', 
                                             date_string='20150505.0', 
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
+    """
     er_manager.download_recent_resource(watershed="rio_yds", 
                                         subbasin="palo_alto", 
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions' )
-    """
     #WRF-Hydro
     """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
