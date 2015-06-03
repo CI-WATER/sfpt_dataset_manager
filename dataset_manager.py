@@ -400,8 +400,8 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
             #get list of all resources
             dataset_info = self.get_dataset_info()
             if dataset_info and main_extract_directory and os.path.exists(main_extract_directory):
-                #make sure there are at least 52 before downloading
-                if dataset_info['num_resources'] >= 52:
+                #make sure there are at least 52 or at lest a day has passed before downloading
+                if dataset_info['num_resources'] >= 52 or (today_datetime-today >= datetime.timedelta(1)):
                     extract_directory = os.path.join(main_extract_directory, self.watershed, date_string)
                     self.download_resource_from_info(extract_directory,
                                                      dataset_info['resources'])
