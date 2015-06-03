@@ -356,7 +356,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 with tarfile.open(output_tar_file, "w:gz") as tar:
                     tar.add(directory_file, arcname=os.path.basename(directory_file))
             #upload file
-            resource_info = self.upload_resource(output_tar_file, overwrite=True)
+            resource_info = self.upload_resource(output_tar_file)
             os.remove(output_tar_file)
         print "%s datasets uploaded" % len(directory_files)
         return resource_info
@@ -583,20 +583,20 @@ if __name__ == "__main__":
     """    
     Tests for the datasets
     """
-    engine_url = 'http://ciwckan.chpc.utah.edu'
-    api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
+    #engine_url = 'http://ciwckan.chpc.utah.edu'
+    #api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
     #ECMWF
-    er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
     """
+    er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
     er_manager.zip_upload_resources(source_directory='/home/alan/work/rapid/output/')
     er_manager.download_prediction_resource(watershed='magdalena', 
                                             subbasin='el_banco', 
                                             date_string='20150505.0', 
                                             extract_directory='/home/alan/work/rapid/output/magdalena/20150505.0')
-    """
     er_manager.download_recent_resource(watershed="rio_yds", 
                                         subbasin="palo_alto", 
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions' )
+    """
     #WRF-Hydro
     """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
