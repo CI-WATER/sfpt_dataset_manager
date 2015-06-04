@@ -14,7 +14,7 @@ $ cd /path/to/your/scripts/
 $ git clone https://github.com/CI-WATER/sfpt_dataset_manager.git
 ```
 
-$Troubleshooting
+#Troubleshooting
 If you see this error:
 ImportError: No module named packages.urllib3.poolmanager
 ```
