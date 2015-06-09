@@ -13,3 +13,14 @@ $ pip install tethys_dataset_services
 $ cd /path/to/your/scripts/
 $ git clone https://github.com/CI-WATER/sfpt_dataset_manager.git
 ```
+
+#Troubleshooting
+If you see this error:
+ImportError: No module named packages.urllib3.poolmanager
+```
+$ pip install pip --upgrade
+```
+Restart your terminal
+```
+$ pip install requests --upgrade
+```
