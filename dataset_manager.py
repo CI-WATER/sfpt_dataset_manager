@@ -305,8 +305,8 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         """
         Initialize run for watershed upload/download custom for ecmwf
         """
-        self.watershed = watershed
-        self.subbasin = subbasin
+        self.watershed = watershed.lower()
+        self.subbasin = subbasin.lower()
         self.date_string = date_string[:11]
         self.date = datetime.datetime.strptime(self.date_string, self.date_format_string)
         self.dataset_name = '%s-%s-%s-%s' % (self.model_name, 
@@ -486,8 +486,8 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
         """
         Initialize run for watershed upload/download
         """
-        self.watershed = watershed
-        self.subbasin = subbasin
+        self.watershed = watershed.lower()
+        self.subbasin = subbasin.lower()
         self.date = datetime.datetime.utcnow()
         self.date_string = self.date.strftime(self.date_format_string)
         self.resource_name = '%s-%s-%s-rapid-input' % (self.model_name,
