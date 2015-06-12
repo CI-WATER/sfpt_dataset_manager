@@ -534,17 +534,21 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
             #get list of resources on CKAN
             current_ckan_resources = [d for d in dataset_info['resources'] \
                                       if 'watershed' in d and 'subbasin' in d]
+
             #get list of watersheds and subbasins on local instance
             current_local_resources = []
             subbasin_name_search = re.compile(r'rapid_namelist_(\w+).dat')
             watersheds = [d for d in os.listdir(extract_directory) \
-                if os.path.isdir(os.path.join(extract_directory, d))]
+                          if os.path.isdir(os.path.join(extract_directory, d))]
     
             for watershed in watersheds:
                 namelist_files = glob(os.path.join(extract_directory, watershed, 'rapid_namelist_*.dat'))
-                if namelist_files:
-                    subbasin = subbasin_name_search.search(namelist_files[0]).group(1)
+                if not namelist_files:
+                    current_local_resources.append({'watershed': watershed, 'subbasin': ""})
+                for namelist_file in namelist_files:
+                    subbasin = subbasin_name_search.search(namelist_file).group(1)
                     current_local_resources.append({'watershed': watershed, 'subbasin': subbasin})
+
 
             date_compare = datetime.datetime.utcnow()-datetime.timedelta(hours=12, minutes=30)
             #STEP 1: Remove resources no longer on CKAN or update local resource
