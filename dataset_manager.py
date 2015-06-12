@@ -569,8 +569,7 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
             #STEP 2: Add new resources to local instance if not already here
             for ckan_resource in current_ckan_resources:         
                 print "ATTEMPT DOWNLOAD RESOURCE", ckan_resource['watershed'], ckan_resource['subbasin']
-                self.download_model_resource(ckan_resource['watershed'],
-                                             ckan_resource['subbasin'],
+                self.download_model_resource(ckan_resource,
                                              os.path.join(extract_directory, ckan_resource['watershed']))
 
 
