@@ -506,13 +506,13 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
             self.initialize_run(watershed, subbasin)
             self.zip_upload_directory(source_directory)
 
-    def download_model_resource(self, watershed, subbasin, extract_directory):
+    def download_model_resource(self, resource_info, extract_directory):
         """
         This function downloads a prediction resource
         """
-        self.initialize_run(watershed, subbasin)
-        self.download_resource(extract_directory)
-    
+        self.initialize_run(resource_info['watershed'], resource_info['subbasin'])
+        self.download_resource_from_info(extract_directory, [resource_info])
+
     def upload_model_resource(self, upload_file, watershed, subbasin):
         """
         This function uploads file to CKAN
@@ -553,29 +553,21 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
                                     (d['watershed'].lower() == local_resource['watershed'].lower()) and \
                                     d['subbasin'].lower() == local_resource['subbasin'].lower()]
                 if not ckan_resource:
-                    #Remove resources no longer on CKAN
+                    #remove resources no longer on CKAN
                     print "LOCAL DELETE", local_resource['watershed'], local_resource['subbasin']
-                    #remove local resource from list
-                    current_local_resources[:] = [d for d in current_local_resources if d != local_resource]
                     rmtree(os.path.join(extract_directory, local_resource['watershed']))
                 elif datetime.datetime.strptime(ckan_resource[0]['created'].split(".")[0], "%Y-%m-%dT%H:%M:%S") > date_compare:
                     #2015-05-12T14:01:08.572338
+                    #remove out of date local resources
                     print "LOCAL PAST DELETE", local_resource['watershed'], local_resource['subbasin']
-                    #remove local resource from list
-                    current_local_resources[:] = [d for d in current_local_resources if d != local_resource]
                     rmtree(os.path.join(extract_directory, local_resource['watershed']))
             
-            #STEP 2: Add new resources to local instance
+            #STEP 2: Add new resources to local instance if not already here
             for ckan_resource in current_ckan_resources:         
-                local_resource = [d for d in current_local_resources if \
-                                    (d['watershed'].lower() == ckan_resource['watershed'].lower()) and \
-                                    d['subbasin'].lower() == ckan_resource['subbasin'].lower()]
-
-                if not local_resource:
-                    print "DOWNLOAD RESOURCE", ckan_resource['watershed'], ckan_resource['subbasin']
-                    self.download_model_resource(ckan_resource['watershed'],
-                                                 ckan_resource['subbasin'],
-                                                 os.path.join(extract_directory, ckan_resource['watershed']))                
+                print "ATTEMPT DOWNLOAD RESOURCE", ckan_resource['watershed'], ckan_resource['subbasin']
+                self.download_model_resource(ckan_resource['watershed'],
+                                             ckan_resource['subbasin'],
+                                             os.path.join(extract_directory, ckan_resource['watershed']))
 
 
 if __name__ == "__main__":
