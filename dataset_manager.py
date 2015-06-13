@@ -127,7 +127,15 @@ class CKANDatasetManager(object):
             resource_results = self.dataset_engine.search_resources({'name':self.resource_name},
                                                                     datset_id=dataset_id)
             try:
-                if overwrite and resource_results['result']['count'] > 0:
+                #determine if results are exact or similar
+                same_ckan_resource_id = ""
+                if resource_results['result']['count'] > 0:
+                    for resource in resource_results['result']['results']:
+                        if resource['name'] == self.resource_name:
+                            same_ckan_resource_id = resource['id']
+                            break
+                        
+                if overwrite and same_ckan_resource_id:
                     #delete resource
                     """
                     CKAN API CURRENTLY DOES NOT WORK FOR UPDATE - bug = needs file or url, 
@@ -140,9 +148,9 @@ class CKANDatasetManager(object):
                                                         url="",
                                                         date_uploaded=datetime.datetime.utcnow().strftime("%Y%m%d%H%M"))
                     """
-                    self.dataset_engine.delete_resource(resource_results['result']['results'][0]['id'])
+                    self.dataset_engine.delete_resource(same_ckan_resource_id)
 
-                if resource_results['result']['count'] <=0 or overwrite:
+                if not same_ckan_resource_id or overwrite:
                     
                     #upload resources to the dataset
                     return self.dataset_engine.create_resource(dataset_id, 
@@ -156,7 +164,7 @@ class CKANDatasetManager(object):
                                                     description=self.resource_description)
                                                     
                 else:
-                    print "Resource exists. Skipping ..."
+                    print "Resource", self.resource_name ,"exists. Skipping ..."
             except Exception,e:
                 print e
                 pass
