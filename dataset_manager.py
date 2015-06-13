@@ -208,8 +208,10 @@ class CKANDatasetManager(object):
                                                                     datset_id=dataset_id)
             try:
                 if resource_results['result']['count'] > 0:
-                    #upload resources to the dataset
-                    return resource_results['result']['results'][0]
+                    for resource in resource_results['result']['results']:
+                        if resource['name'] == self.resource_name:
+                            #upload resources to the dataset
+                            return resource
             except Exception,e:
                 print e
                 pass
@@ -224,7 +226,10 @@ class CKANDatasetManager(object):
         
         if response_dict['success']:
             if int(response_dict['result']['count']) > 0:
-                return response_dict['result']['results'][0]
+                for dataset in response_dict['result']['results']:
+                    if dataset['name'] == self.dataset_name:
+                        #upload resources to the dataset
+                        return dataset
             return None
         else:
             return None
