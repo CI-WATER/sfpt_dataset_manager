@@ -555,8 +555,15 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
     
             for rapid_input_folder in rapid_input_folders:
                 input_folder_split = rapid_input_folder.split("-")
-                current_local_resources.append({'watershed': input_folder_split[0], 'subbasin': input_folder_split[1]})
-
+                try:
+                    subbasin = input_folder_split[1]
+                except IndexError:
+                    subbasin = ""
+                    pass
+                current_local_resources.append({'watershed': input_folder_split[0],
+                                                'subbasin': subbasin,
+                                                'folder': rapid_input_folder
+                                                })
 
             date_compare = datetime.datetime.utcnow()-datetime.timedelta(hours=12, minutes=30)
             #STEP 1: Remove resources no longer on CKAN or update local resource
@@ -565,8 +572,7 @@ class RAPIDInputDatasetManager(CKANDatasetManager):
                                     (d['watershed'].lower() == local_resource['watershed'].lower()) and \
                                     d['subbasin'].lower() == local_resource['subbasin'].lower()]
 
-                local_directory = os.path.join(extract_directory, "%s-%s" % (local_resource['watershed'],
-                                                                             local_resource['subbasin']))
+                local_directory = os.path.join(extract_directory, local_resource['folder'])
                 if not ckan_resource:
                     #remove resources no longer on CKAN
                     print "LOCAL DELETE", local_resource['watershed'], local_resource['subbasin']
