@@ -609,7 +609,7 @@ if __name__ == "__main__":
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
-    wr_manager.download_prediction_resource(watershed='usa', 
+    wr_manager.download_prediction_resource(watershed='usa',
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
