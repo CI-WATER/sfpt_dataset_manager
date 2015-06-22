@@ -37,8 +37,8 @@ class CKANDatasetManager(object):
         """
         Initialize run for watershed upload/download
         """
-        self.watershed = watershed
-        self.subbasin = subbasin
+        self.watershed = watershed.lower()
+        self.subbasin = subbasin.lower()
         self.date_string = date_string
         self.date = datetime.datetime.strptime(self.date_string, self.date_format_string)
         self.dataset_name = '%s-%s-%s-%s' % (self.model_name,
