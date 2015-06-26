@@ -659,8 +659,8 @@ if __name__ == "__main__":
     """    
     Tests for the datasets
     """
-    engine_url = 'http://ciwckan.chpc.utah.edu'
-    api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
+    #engine_url = 'http://ciwckan.chpc.utah.edu'
+    #api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
     #ECMWF
     """
     er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
@@ -674,8 +674,8 @@ if __name__ == "__main__":
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions' )
     """
     #WRF-Hydro
-    wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
     """
+    wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
@@ -683,10 +683,10 @@ if __name__ == "__main__":
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
-    """
-    wr_manager.download_recent_resource(watershed='nfie_wrfhydro_conus', 
+    wr_manager.download_recent_resource(watershed='nfie_wrfhydro_conus',
                                         subbasin='nfie_wrfhydro_conus', 
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions')
+    """
     #RAPID Input
     """
     app_instance_id = 'eb76561dc4ba513c994a00f7721becf1'
