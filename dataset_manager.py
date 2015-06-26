@@ -335,7 +335,17 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                                                  self.subbasin,
                                                  self.date_string,
                                                  ensemble_number)
-    
+
+    def update_resource_return_period(self, return_period):
+        """
+        Set ensemble number in resource name for ecmwf resource
+        """
+        self.resource_name = '%s-%s-%s-%s-warning_points_%s' % (self.model_name,
+                                                 self.watershed,
+                                                 self.subbasin,
+                                                 self.date_string,
+                                                 return_period)
+
     def get_subbasin_name_list(self, source_directory, subbasin_name_search):
         """
         Get a list of subbasins in directory
@@ -348,13 +358,38 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 subbasin_list.append(subbasin_name)
         return subbasin_list
 
-    def zip_upload_directory(self, directory_path, search_string="*"):
+    def zip_upload_warning_points_in_directory(self, directory_path, search_string="return_*_points.txt"):
         """
         This function packages all of the datasets into individual tar.gz files and
         uploads them to the dataset
         """
         base_path = os.path.dirname(directory_path)
-        ensemble_number_search = re.compile(r'Qout_\w+_(\d+).nc')
+        return_period_search = re.compile(r'return_(\d+)_points\.txt')
+
+        #zip file and get dataset information
+        print "Zipping and uploading warning points files for watershed: %s %s" % (self.watershed, self.subbasin)
+        directory_files = glob(os.path.join(directory_path,search_string))
+        for directory_file in directory_files:
+            return_period = return_period_search.search(os.path.basename(directory_file)).group(1)
+            self.update_resource_return_period(return_period)
+            #tar.gz file
+            output_tar_file =  os.path.join(base_path, "%s.tar.gz" % self.resource_name)
+            if not os.path.exists(output_tar_file):
+                with tarfile.open(output_tar_file, "w:gz") as tar:
+                    tar.add(directory_file, arcname=os.path.basename(directory_file))
+            #upload file
+            resource_info = self.upload_resource(output_tar_file)
+            os.remove(output_tar_file)
+        print "%s datasets uploaded" % len(directory_files)
+        return resource_info
+
+    def zip_upload_forecasts_in_directory(self, directory_path, search_string="*.nc"):
+        """
+        This function packages all of the datasets into individual tar.gz files and
+        uploads them to the dataset
+        """
+        base_path = os.path.dirname(directory_path)
+        ensemble_number_search = re.compile(r'Qout_\w+_(\d+)\.nc')
 
         #zip file and get dataset information
         print "Zipping and uploading files for watershed: %s %s" % (self.watershed, self.subbasin)
@@ -373,7 +408,6 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         print "%s datasets uploaded" % len(directory_files)
         return resource_info
 
-        
     def zip_upload_resources(self, source_directory):
         """
         This function packages all of the datasets in to tar.gz files and
@@ -381,7 +415,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         """
         watersheds = [d for d in os.listdir(source_directory) \
                         if os.path.isdir(os.path.join(source_directory, d))]
-        subbasin_name_search = re.compile(r'Qout_(\w+)_\d+.nc')
+        subbasin_name_search = re.compile(r'Qout_(\w+)_\d+\.nc')
 
         for watershed in watersheds:
             watershed_dir = os.path.join(source_directory, watershed)
@@ -392,8 +426,8 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                                                        subbasin_name_search)
                 for subbasin in subbasin_list:
                     self.initialize_run_ecmwf(watershed, subbasin, date_string)
-                    self.zip_upload_directory(os.path.join(watershed_dir, date_string), 
-                                              'Qout_%s*.nc' % subbasin)
+                    self.zip_upload_forecasts_in_directory(os.path.join(watershed_dir, date_string),
+                                                           'Qout_%s*.nc' % subbasin)
     
     def download_recent_resource(self, watershed, subbasin, main_extract_directory):
         """
@@ -412,8 +446,23 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
             #get list of all resources
             dataset_info = self.get_dataset_info()
             if dataset_info and main_extract_directory and os.path.exists(main_extract_directory):
+                #check if forecast is ready to be downloaded
+                forecast_count = 0
+                warning_point_count = 0
+                if dataset_info['num_resources'] >= 52:
+                    for resource in dataset_info['num_resources']:
+                        if "warning_points" in resource['name']:
+                            warning_point_count += 1
+                        else:
+                           forecast_count += 1
+                dataset_ready = dataset_info['num_resources'] >= 52
+                if warning_point_count > 0 and warning_point_count < 3:
+                    dataset_ready = False
+                if forecast_count < 52:
+                    dataset_ready = False
+
                 #make sure there are at least 52 or at lest a day has passed before downloading
-                if dataset_info['num_resources'] >= 52 or (today_datetime-today >= datetime.timedelta(1)):
+                if dataset_ready or (today_datetime-today >= datetime.timedelta(1)):
                     extract_directory = os.path.join(main_extract_directory, self.watershed, self.subbasin, date_string)
                     download_file = self.download_resource_from_info(extract_directory,
                                                      dataset_info['resources'])
