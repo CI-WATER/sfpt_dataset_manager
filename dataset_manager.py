@@ -234,12 +234,16 @@ class CKANDatasetManager(object):
             return None
 
     
-    def download_resource_from_info(self, extract_directory, resource_info_array):
+    def download_resource_from_info(self, extract_directory, resource_info_array, local_file=None):
         """
         Downloads a resource from url
         """
+        data_downloaded = False
         #only download if file does not exist already
-        if not os.path.exists(extract_directory):
+        check_location = extract_directory
+        if local_file:
+            check_location = os.path.join(extract_directory, local_file)
+        if not os.path.exists(check_location):
             print "Downloading and extracting files for watershed:", self.watershed, self.subbasin
             try:
                 os.makedirs(extract_directory)
@@ -250,40 +254,53 @@ class CKANDatasetManager(object):
                 file_format = resource_info['format']
                 
                 local_tar_file = "%s.%s" % (resource_info['name'], file_format)
+                    
                 local_tar_file_path = os.path.join(extract_directory,
                                                    local_tar_file)
-                r = get(resource_info['url'], stream=True)
-                with open(local_tar_file_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=1024): 
-                        if chunk: # filter out keep-alive new chunks
-                            f.write(chunk)
-                            f.flush()
-    
-                if file_format.lower() == "tar.gz":
-                    with tarfile.open(local_tar_file_path) as tar:
-                        tar.extractall(extract_directory)
-                elif file_format.lower() == "zip":
-                    with zipfile.ZipFile(local_tar_file_path) as zip_file:
-                        zip_file.extractall(extract_directory)
-                else:
-                    print "Unsupported file format. Skipping."
-
-                os.remove(local_tar_file_path)
+                if os.path.exists(local_tar_file_path):
+                    print "Local raw file found. Skipping ..."
+                    data_downloaded = False
+                try:    
+                    r = get(resource_info['url'], stream=True)
+                    with open(local_tar_file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=1024): 
+                            if chunk: # filter out keep-alive new chunks
+                                f.write(chunk)
+                                f.flush()
+        
+                    if file_format.lower() == "tar.gz":
+                        with tarfile.open(local_tar_file_path) as tar:
+                            tar.extractall(extract_directory)
+                    elif file_format.lower() == "zip":
+                        with zipfile.ZipFile(local_tar_file_path) as zip_file:
+                            zip_file.extractall(extract_directory)
+                    else:
+                        print "Unsupported file format. Skipping ..."
+                except Exception, ex:
+                    print ex
+                    data_downloaded = False
+                    pass
+                
+                try:
+                    os.remove(local_tar_file_path)
+                except OSError:
+                    pass
                 
             print "Finished downloading and extracting file(s)"
-            return True
+            return data_downloaded
         else:
             print "Resource exists locally. Skipping ..."
             return False
 
-    def download_resource(self, extract_directory):
+    def download_resource(self, extract_directory, local_file=None):
         """
         This function downloads a resource
         """
         resource_info = self.get_resource_info()
         if resource_info:
-            self.download_resource_from_info(extract_directory, 
-                                             [resource_info])
+            return self.download_resource_from_info(extract_directory, 
+                                                    [resource_info],
+                                                     local_file)
         else:
             print "Resource not found in CKAN. Skipping ..."
             return False
@@ -508,17 +525,16 @@ class WRFHydroHRRRDatasetManager(CKANDatasetManager):
         """
         iteration = 0
         download_file = False
-        today_datetime = datetime.datetime.utcnow()
+        today_datetime = datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0)
         #search for datasets within the last day
         while not download_file and iteration < 24:
             today =  today_datetime - datetime.timedelta(seconds=iteration*60*60)
-            
             date_string = today.strftime(self.date_format_string)
             self.initialize_run(watershed, subbasin, date_string)
             resource_info = self.get_resource_info()
             if resource_info and main_extract_directory and os.path.exists(main_extract_directory):
                 extract_directory = os.path.join(main_extract_directory, self.watershed, self.subbasin)
-                download_file = self.download_resource(extract_directory)
+                download_file = self.download_resource(extract_directory, "RapidResult_%s_CF.nc" % date_string)
             iteration += 1
                     
         if not download_file:
@@ -643,8 +659,8 @@ if __name__ == "__main__":
     """    
     Tests for the datasets
     """
-    #engine_url = 'http://ciwckan.chpc.utah.edu'
-    #api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
+    engine_url = 'http://ciwckan.chpc.utah.edu'
+    api_key = '8dcc1b34-0e09-4ddc-8356-df4a24e5be87'
     #ECMWF
     """
     er_manager = ECMWFRAPIDDatasetManager(engine_url, api_key)
@@ -658,8 +674,8 @@ if __name__ == "__main__":
                                         main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/ecmwf_rapid_predictions' )
     """
     #WRF-Hydro
-    """
     wr_manager = WRFHydroHRRRDatasetManager(engine_url, api_key)
+    """
     wr_manager.zip_upload_resource(source_file='/home/alan/Downloads/RapidResult_20150405T2300Z_CF.nc',
                                     watershed='usa',
                                     subbasin='usa')
@@ -667,10 +683,10 @@ if __name__ == "__main__":
                                             subbasin='usa', 
                                             date_string='20150405T2300Z', 
                                             extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
-    wr_manager.download_recent_resource(watershed='usa', 
-                                        subbasin='usa', 
-                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions/usa/usa')
     """
+    wr_manager.download_recent_resource(watershed='nfie_wrfhydro_conus', 
+                                        subbasin='nfie_wrfhydro_conus', 
+                                        main_extract_directory='/home/alan/tethysdev/tethysapp-erfp_tool/wrf_hydro_rapid_predictions')
     #RAPID Input
     """
     app_instance_id = 'eb76561dc4ba513c994a00f7721becf1'
