@@ -358,10 +358,10 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
         Set ensemble number in resource name for ecmwf resource
         """
         self.resource_name = '%s-%s-%s-%s-warning_points_%s' % (self.model_name,
-                                                 self.watershed,
-                                                 self.subbasin,
-                                                 self.date_string,
-                                                 return_period)
+                                                                self.watershed,
+                                                                self.subbasin,
+                                                                self.date_string,
+                                                                return_period)
 
     def get_subbasin_name_list(self, source_directory, subbasin_name_search):
         """
@@ -395,10 +395,9 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 with tarfile.open(output_tar_file, "w:gz") as tar:
                     tar.add(directory_file, arcname=os.path.basename(directory_file))
             #upload file
-            resource_info = self.upload_resource(output_tar_file)
+            self.upload_resource(output_tar_file)
             os.remove(output_tar_file)
         print "%s datasets uploaded" % len(directory_files)
-        return resource_info
 
     def zip_upload_forecasts_in_directory(self, directory_path, search_string="*.nc"):
         """
