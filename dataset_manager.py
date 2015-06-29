@@ -466,7 +466,7 @@ class ECMWFRAPIDDatasetManager(CKANDatasetManager):
                 forecast_count = 0
                 warning_point_count = 0
                 if dataset_info['num_resources'] >= 52:
-                    for resource in dataset_info['num_resources']:
+                    for resource in dataset_info['resources']:
                         if "warning_points" in resource['name']:
                             warning_point_count += 1
                         else:
